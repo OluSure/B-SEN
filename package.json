@@ -1,0 +1,19 @@
+{
+  "name": "b-sen-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "dev": "concurrently \"cd backend && npm install && node server.js\" \"cd frontend && npm install && npm run dev\""
+  },
+  "dependencies": {
+    "serverless-http": "^3.0.0",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "mongoose": "^7.0.3",
+    "stellar-sdk": "^10.4.1",
+    "soroban-client": "^0.9.2",
+    "concurrently": "^8.2.0"
+  }
+}

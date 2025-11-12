@@ -1,0 +1,28 @@
+[package]
+name = "b-sen-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+
+[dependencies]
+# Use the soroban-sdk directly from the GitHub repo to avoid yanked/crates.io version issues.
+# This pulls the SDK from the repository. You can change this later to a released version
+# from crates.io once a non-yanked release is available.
+soroban-sdk = { git = "https://github.com/stellar/rs-soroban-sdk.git" }
+
+[dev-dependencies]
+# Include test utilities from the SDK via the Git repo. The package name remains `soroban-sdk`.
+soroban-sdk = { git = "https://github.com/stellar/rs-soroban-sdk.git", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
