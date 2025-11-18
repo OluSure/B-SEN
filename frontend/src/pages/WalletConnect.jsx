@@ -5,6 +5,7 @@ const WalletConnect = () => {
   const [publicKey, setPublicKey] = useState('')
   const [reputation, setReputation] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [freighterInstalled, setFreighterInstalled] = useState(false)
 
   useEffect(() => {
     checkWalletConnection()
@@ -12,6 +13,7 @@ const WalletConnect = () => {
 
   const checkWalletConnection = async () => {
     if (typeof window.freighter !== 'undefined') {
+      setFreighterInstalled(true)
       try {
         const publicKey = await window.freighter.getPublicKey()
         setConnected(true)
@@ -96,6 +98,7 @@ const WalletConnect = () => {
                 <button
                   onClick={connectWallet}
                   className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white py-4 px-8 rounded-lg font-bold text-lg hover:shadow-2xl hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105"
+                  disabled={!freighterInstalled}
                 >
                   🔗 Connect Freighter
                 </button>
@@ -103,27 +106,28 @@ const WalletConnect = () => {
                   This is a secure, decentralized connection. We never access your funds.
                 </p>
               </div>
-
-              {/* Install Freighter Card */}
-              <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-xl border border-blue-400/30 rounded-2xl p-6">
-                <div className="flex items-start space-x-4">
-                  <div className="text-3xl">📦</div>
-                  <div>
-                    <h3 className="font-bold text-white mb-2">Don't have Freighter?</h3>
-                    <p className="text-blue-200 text-sm mb-4">
-                      Freighter is a secure browser wallet for the Stellar blockchain.
-                    </p>
-                    <a
-                      href="https://www.freighter.app/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-semibold transition-all hover:scale-105"
-                    >
-                      Install Freighter →
-                    </a>
+              {/* Show Install Freighter Card only if not installed */}
+              {!freighterInstalled && (
+                <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-xl border border-blue-400/30 rounded-2xl p-6">
+                  <div className="flex items-start space-x-4">
+                    <div className="text-3xl">📦</div>
+                    <div>
+                      <h3 className="font-bold text-white mb-2">Don't have Freighter?</h3>
+                      <p className="text-blue-200 text-sm mb-4">
+                        Freighter is a secure browser wallet for the Stellar blockchain.
+                      </p>
+                      <a
+                        href="https://www.freighter.app/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-semibold transition-all hover:scale-105"
+                      >
+                        Install Freighter →
+                      </a>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           ) : (
             // Connected State
