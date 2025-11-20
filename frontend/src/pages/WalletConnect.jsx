@@ -5,9 +5,6 @@ const WalletConnect = () => {
   const [publicKey, setPublicKey] = useState('')
   const [reputation, setReputation] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [freighterInstalled, setFreighterInstalled] = useState(false)
-  const [debugInfo, setDebugInfo] = useState(null)
-  const [lastError, setLastError] = useState('')
 
   useEffect(() => {
     checkWalletConnection()
