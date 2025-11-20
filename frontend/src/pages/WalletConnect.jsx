@@ -5,10 +5,27 @@ const WalletConnect = () => {
   const [publicKey, setPublicKey] = useState('')
   const [reputation, setReputation] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [freighterInstalled, setFreighterInstalled] = useState(false)
 
   useEffect(() => {
     checkWalletConnection()
+
+    // Poll for Freighter injection for a short period in case the extension
+    // injects after the page has loaded. This makes the connect button
+    // become enabled without a page refresh.
+    let attempts = 0
+    const maxAttempts = 50
+    const interval = setInterval(() => {
+      attempts += 1
+      if (typeof window.freighter !== 'undefined') {
+        clearInterval(interval)
+        checkWalletConnection()
+      } else if (attempts >= maxAttempts) {
+        clearInterval(interval)
+        setLoading(false)
+      }
+    }, 200)
+
+    return () => clearInterval(interval)
   }, [])
 
   const checkWalletConnection = async () => {
@@ -21,7 +38,8 @@ const WalletConnect = () => {
         try { localStorage.setItem('publicKey', publicKey) } catch (e) {}
         await fetchReputation(publicKey)
       } catch (e) {
-        console.error('Not connected to Freighter')
+        console.error('Not connected to Freighter', e)
+        setLastError(String(e))
         setConnected(false)
       }
     }
@@ -29,19 +47,69 @@ const WalletConnect = () => {
   }
 
   const connectWallet = async () => {
-    if (typeof window.freighter !== 'undefined') {
-      try {
-        await window.freighter.connect()
-        const publicKey = await window.freighter.getPublicKey()
-        setConnected(true)
-        setPublicKey(publicKey)
-        try { localStorage.setItem('publicKey', publicKey) } catch (e) {}
-        await fetchReputation(publicKey)
-      } catch (e) {
-        console.error('Error connecting to Freighter:', e)
-      }
-    } else {
+    if (typeof window.freighter === 'undefined') {
       window.open('https://www.freighter.app/', '_blank')
+      return
+    }
+
+    try {
+      // Try to get the public key first (if already connected)
+      let publicKey = null
+      try {
+        if (typeof window.freighter.getPublicKey === 'function') {
+          const pk = await window.freighter.getPublicKey()
+          if (pk) publicKey = pk
+        }
+      } catch (e) {
+        console.debug('getPublicKey initial attempt failed', e)
+      }
+
+      // If not available, attempt an explicit connect which should prompt the extension
+      if (!publicKey) {
+        try {
+          if (typeof window.freighter.connect === 'function') {
+            await window.freighter.connect()
+          }
+        } catch (e) {
+          console.debug('freighter.connect() failed or was dismissed', e)
+        }
+
+        // After connect attempt, try several ways to obtain the account
+        try {
+          if (typeof window.freighter.getPublicKey === 'function') {
+            const pk = await window.freighter.getPublicKey()
+            if (pk) publicKey = pk
+          }
+        } catch (e) {
+          console.debug('getPublicKey after connect failed', e)
+        }
+
+        // Some Freighter versions expose getAccount
+        if (!publicKey && typeof window.freighter.getAccount === 'function') {
+          try {
+            const acct = await window.freighter.getAccount()
+            if (acct && acct.accountId) publicKey = acct.accountId
+          } catch (e) {
+            console.debug('getAccount failed', e)
+          }
+        }
+      }
+
+      if (!publicKey) {
+        // Give the user clear instructions to allow the connection in the extension
+        alert('Unable to connect to Freighter. Please open the Freighter extension, unlock your wallet, and allow connection to this site, then click Connect again.')
+        console.error('Freighter detected but no public key could be obtained')
+        return
+      }
+
+      setConnected(true)
+      setPublicKey(publicKey)
+      try { localStorage.setItem('publicKey', publicKey) } catch (e) {}
+      await fetchReputation(publicKey)
+    } catch (e) {
+      console.error('Unexpected error while connecting to Freighter:', e)
+      setLastError(String(e))
+      alert('Error connecting to Freighter. Check the console for details.')
     }
   }
 
@@ -49,12 +117,14 @@ const WalletConnect = () => {
     setConnected(false)
     setPublicKey('')
     setReputation(0)
-    try { localStorage.removeItem('publicKey') } catch (e) {}
+    try { localStorage.removeItem('publicKey') } catch (e) {} 
   }
+
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
   const fetchReputation = async (address) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/users/${address}/reputation`)
+      const response = await fetch(`${API_BASE}/api/users/${address}/reputation`)
       const data = await response.json()
       setReputation(data.reputation || 0)
     } catch (error) {
@@ -96,15 +166,87 @@ const WalletConnect = () => {
                   Connect your Stellar wallet to post gigs, accept work, and build your reputation on the B-SEN network.
                 </p>
                 <button
-                  onClick={connectWallet}
+                    onClick={connectWallet}
                   className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white py-4 px-8 rounded-lg font-bold text-lg hover:shadow-2xl hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105"
                   disabled={!freighterInstalled}
                 >
                   🔗 Connect Freighter
                 </button>
+                  {/* If Freighter is installed but user couldn't connect via extension menu,
+                      show a small retry/detect hint so they can attempt again. */}
+                  {freighterInstalled && !connected && (
+                    <div className="mt-4 text-sm text-indigo-200">
+                      <p>If you opened Freighter from the browser menu, please unlock it and press Connect here.</p>
+                      <button
+                        onClick={async () => {
+                          setLoading(true)
+                          await checkWalletConnection()
+                          setLoading(false)
+                        }}
+                        className="mt-2 inline-block bg-white/10 hover:bg-white/20 text-indigo-200 py-1 px-3 rounded-md"
+                      >
+                        Retry Detect
+                      </button>
+                    </div>
+                  )}
                 <p className="mt-6 text-gray-400 text-sm">
                   This is a secure, decentralized connection. We never access your funds.
                 </p>
+                {/* Debug tools */}
+                <div className="mt-4 text-left text-xs text-indigo-200">
+                  <button
+                    onClick={async () => {
+                      // Gather debug info about the injected wallet
+                      const info = { present: !!window.freighter }
+                      if (info.present) {
+                        try {
+                          info.keys = Object.keys(window.freighter).sort()
+                        } catch (e) {
+                          info.keysError = String(e)
+                        }
+                        try {
+                          if (typeof window.freighter.getPublicKey === 'function') {
+                            info.publicKey = await window.freighter.getPublicKey()
+                          }
+                        } catch (e) {
+                          info.getPublicKeyError = String(e)
+                        }
+                        try {
+                          if (typeof window.freighter.getAccount === 'function') {
+                            const acct = await window.freighter.getAccount()
+                            info.getAccount = acct
+                          }
+                        } catch (e) {
+                          info.getAccountError = String(e)
+                        }
+                      }
+                      setDebugInfo(info)
+                    }}
+                    className="mt-3 inline-block bg-white/10 hover:bg-white/20 text-indigo-200 py-1 px-3 rounded-md mr-2"
+                  >
+                    Show Freighter Info
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setLastError('')
+                      checkWalletConnection()
+                    }}
+                    className="mt-3 inline-block bg-white/10 hover:bg-white/20 text-indigo-200 py-1 px-3 rounded-md"
+                  >
+                    Retry Connect
+                  </button>
+
+                  {lastError && (
+                    <div className="mt-2 text-rose-300">
+                      <strong>Error:</strong> {lastError}
+                    </div>
+                  )}
+
+                  {debugInfo && (
+                    <pre className="mt-2 p-2 bg-black/20 rounded text-xs overflow-auto">{JSON.stringify(debugInfo, null, 2)}</pre>
+                  )}
+                </div>
               </div>
               {/* Show Install Freighter Card only if not installed */}
               {!freighterInstalled && (
