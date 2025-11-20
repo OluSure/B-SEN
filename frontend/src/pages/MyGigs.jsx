@@ -8,7 +8,8 @@ const MyGigs = () => {
     // TODO: Fetch user's gigs from backend
     const fetchMyGigs = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/gigs/my-gigs')
+        const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+        const response = await fetch(`${API_BASE}/api/gigs/my-gigs`)
         const data = await response.json()
         setMyGigs(data)
         setLoading(false)
@@ -23,7 +24,8 @@ const MyGigs = () => {
 
   const handleComplete = async (gigId) => {
     try {
-      await fetch(`http://localhost:3000/api/gigs/${gigId}/complete`, {
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+      await fetch(`${API_BASE}/api/gigs/${gigId}/complete`, {
         method: 'POST'
       })
       // Refresh gigs list

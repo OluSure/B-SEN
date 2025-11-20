@@ -8,7 +8,8 @@ const Home = () => {
   useEffect(() => {
     const fetchGigs = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/gigs')
+        const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+        const response = await fetch(`${API_BASE}/api/gigs`)
         const data = await response.json()
         setGigs(data)
         setLoading(false)
@@ -124,13 +125,14 @@ const Home = () => {
                     const publicKey = localStorage.getItem('publicKey')
                     if (!publicKey) return alert('🔐 Connect your Freighter wallet first!')
                     try {
-                      const res = await fetch(`http://localhost:3000/api/gigs/${gig._id}/accept`, {
+                      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+                      const res = await fetch(`${API_BASE}/api/gigs/${gig._id}/accept`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ workerAddress: publicKey })
                       })
                       if (res.ok) {
-                        const newGigs = await (await fetch('http://localhost:3000/api/gigs')).json()
+                        const newGigs = await (await fetch(`${API_BASE}/api/gigs`)).json()
                         setGigs(newGigs)
                         alert('✅ Gig accepted! You\'re now the worker.')
                       } else {
