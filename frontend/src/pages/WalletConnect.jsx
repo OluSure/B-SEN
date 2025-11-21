@@ -5,6 +5,22 @@ const WalletConnect = () => {
   const [publicKey, setPublicKey] = useState('')
   const [reputation, setReputation] = useState(0)
   const [loading, setLoading] = useState(true)
+  // Missing states which were referenced in the component and caused a runtime error
+  const [freighterInstalled, setFreighterInstalled] = useState(false)
+  const [lastError, setLastError] = useState('')
+  const [debugInfo, setDebugInfo] = useState(null)
+
+  // Helper to find the injected Freighter object under a few possible names
+  const getFreighter = () => {
+    // Common injection names across versions or alternative injectors
+    if (typeof window !== 'undefined') {
+      if (window.freighter) return window.freighter
+      if (window.freighterApi) return window.freighterApi
+      if (window.freighterProvider) return window.freighterProvider
+      if (window.stellar && window.stellar.freighter) return window.stellar.freighter
+    }
+    return undefined
+  }
 
   useEffect(() => {
     checkWalletConnection()
@@ -16,7 +32,7 @@ const WalletConnect = () => {
     const maxAttempts = 50
     const interval = setInterval(() => {
       attempts += 1
-      if (typeof window.freighter !== 'undefined') {
+      if (getFreighter()) {
         clearInterval(interval)
         checkWalletConnection()
       } else if (attempts >= maxAttempts) {
@@ -29,10 +45,12 @@ const WalletConnect = () => {
   }, [])
 
   const checkWalletConnection = async () => {
-    if (typeof window.freighter !== 'undefined') {
+    const freighter = getFreighter()
+    if (freighter) {
       setFreighterInstalled(true)
       try {
-        const publicKey = await window.freighter.getPublicKey()
+        console.debug('Freighter object detected:', Object.keys(freighter || {}))
+        const publicKey = await freighter.getPublicKey()
         setConnected(true)
         setPublicKey(publicKey)
         try { localStorage.setItem('publicKey', publicKey) } catch (e) {}
@@ -42,12 +60,16 @@ const WalletConnect = () => {
         setLastError(String(e))
         setConnected(false)
       }
+    } else {
+      setFreighterInstalled(false)
     }
     setLoading(false)
   }
 
   const connectWallet = async () => {
-    if (typeof window.freighter === 'undefined') {
+    const freighter = getFreighter()
+    if (!freighter) {
+      // If Freighter is not detected, open install page to help the user
       window.open('https://www.freighter.app/', '_blank')
       return
     }
@@ -56,8 +78,8 @@ const WalletConnect = () => {
       // Try to get the public key first (if already connected)
       let publicKey = null
       try {
-        if (typeof window.freighter.getPublicKey === 'function') {
-          const pk = await window.freighter.getPublicKey()
+        if (typeof freighter.getPublicKey === 'function') {
+          const pk = await freighter.getPublicKey()
           if (pk) publicKey = pk
         }
       } catch (e) {
@@ -67,8 +89,8 @@ const WalletConnect = () => {
       // If not available, attempt an explicit connect which should prompt the extension
       if (!publicKey) {
         try {
-          if (typeof window.freighter.connect === 'function') {
-            await window.freighter.connect()
+          if (typeof freighter.connect === 'function') {
+            await freighter.connect()
           }
         } catch (e) {
           console.debug('freighter.connect() failed or was dismissed', e)
@@ -76,8 +98,8 @@ const WalletConnect = () => {
 
         // After connect attempt, try several ways to obtain the account
         try {
-          if (typeof window.freighter.getPublicKey === 'function') {
-            const pk = await window.freighter.getPublicKey()
+          if (typeof freighter.getPublicKey === 'function') {
+            const pk = await freighter.getPublicKey()
             if (pk) publicKey = pk
           }
         } catch (e) {
@@ -85,9 +107,9 @@ const WalletConnect = () => {
         }
 
         // Some Freighter versions expose getAccount
-        if (!publicKey && typeof window.freighter.getAccount === 'function') {
+        if (!publicKey && typeof freighter.getAccount === 'function') {
           try {
-            const acct = await window.freighter.getAccount()
+            const acct = await freighter.getAccount()
             if (acct && acct.accountId) publicKey = acct.accountId
           } catch (e) {
             console.debug('getAccount failed', e)
@@ -168,7 +190,6 @@ const WalletConnect = () => {
                 <button
                     onClick={connectWallet}
                   className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white py-4 px-8 rounded-lg font-bold text-lg hover:shadow-2xl hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105"
-                  disabled={!freighterInstalled}
                 >
                   🔗 Connect Freighter
                 </button>
@@ -197,23 +218,24 @@ const WalletConnect = () => {
                   <button
                     onClick={async () => {
                       // Gather debug info about the injected wallet
-                      const info = { present: !!window.freighter }
+                      const freighter = getFreighter()
+                      const info = { present: !!freighter }
                       if (info.present) {
                         try {
-                          info.keys = Object.keys(window.freighter).sort()
+                          info.keys = Object.keys(freighter).sort()
                         } catch (e) {
                           info.keysError = String(e)
                         }
                         try {
-                          if (typeof window.freighter.getPublicKey === 'function') {
-                            info.publicKey = await window.freighter.getPublicKey()
+                          if (typeof freighter.getPublicKey === 'function') {
+                            info.publicKey = await freighter.getPublicKey()
                           }
                         } catch (e) {
                           info.getPublicKeyError = String(e)
                         }
                         try {
-                          if (typeof window.freighter.getAccount === 'function') {
-                            const acct = await window.freighter.getAccount()
+                          if (typeof freighter.getAccount === 'function') {
+                            const acct = await freighter.getAccount()
                             info.getAccount = acct
                           }
                         } catch (e) {
@@ -293,7 +315,7 @@ const WalletConnect = () => {
                     <h3 className="text-lg font-bold text-indigo-200">Your Stellar Address</h3>
                   </div>
                   <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                    <p className="text-white font-mono text-sm break-all word-break: break-word">
+                    <p className="text-white font-mono text-sm break-all">
                       {publicKey}
                     </p>
                   </div>
